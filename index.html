@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>ค่าธรรมเนียมขยะ</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+/* ====== CSS เดิม ====== */
+body { font-family: 'Prompt', sans-serif; background:#f2f2f2; margin:0; padding:10px; }
+.main-container { width:100%; max-width:480px; margin:0 auto; }
+.bill-box { background:#fff; border-radius:15px; box-shadow:0 2px 8px rgba(0,0,0,0.1); padding:12px; margin-bottom:12px; }
+.bill-header { display:flex; align-items:center; margin-bottom:8px; }
+.bill-header img { width:30px; height:30px; margin-right:8px; }
+.bill-title { font-size:18px; font-weight:bold; }
+.bill-details { font-size:16px; line-height:1.5; color:#333; }
+.bill-amount { font-size:18px; color:#d32f2f; font-weight:bold; margin-top:6px; }
+.bill-footer { display:flex; justify-content:space-between; align-items:center; margin-top:8px; border-top:1px solid #eee; padding-top:6px; font-size:14px; color:#666; }
+.paid-status { color:#1e88e5; display:flex; align-items:center; gap:4px; }
+.paid-status::before { content:'✓'; font-weight:bold; }
+.unpaid-status { color:#d32f2f; display:flex; align-items:center; gap:4px; }
+.unpaid-status::before { content:'✗'; font-weight:bold; }
+</style>
+</head>
+<body>
+<div class="main-container">
+  <h3 id="welcomeText">กำลังโหลด...</h3>
+  <div id="billContainer">กำลังโหลดข้อมูลของคุณ...</div>
+</div>
+
+<script>
+const monthOrder = ["ต.ค.","พ.ย.","ธ.ค.","ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย."];
+let rawData = [];
+
+// รวมบ้าน + เติมเดือน
+function groupByAddressWithAllMonths(data){
+  const grouped = {};
+  data.forEach(row=>{
+    const key = row[0]; // ใช้ userId เป็น key
+    if(!grouped[key]){
+      grouped[key] = {
+        userId: row[0],
+        houseNo: row[1],
+        alley: row[2],
+        road: row[3],
+        subDistrict: row[4],
+        owner: row[5],
+        months: {}
+      };
+    }
+    grouped[key].months[row[6]] = row[7];
+  });
+  Object.values(grouped).forEach(item=>{
+    monthOrder.forEach(m=>{ if(!item.months[m]) item.months[m] = "ยังไม่ชำระ"; });
+  });
+  return Object.values(grouped);
+}
+
+// render
+function renderBills(data){
+  const container = document.getElementById('billContainer');
+  if(data.length === 0){ container.innerHTML = "❌ ไม่พบข้อมูลของคุณ"; return; }
+  let html = '';
+  data.forEach(item=>{
+    monthOrder.forEach(m=>{
+      const status = item.months[m];
+      const statusClass = status === "ชำระแล้ว" ? "paid-status" : "unpaid-status";
+      html += `
+      <div class="bill-box">
+        <div class="bill-header">
+          <img src="https://cdn-icons-png.flaticon.com/512/2921/2921823.png">
+          <div class="bill-title">ค่าธรรมเนียมขยะ</div>
+        </div>
+        <div class="bill-details">
+          <div>บ้านเลขที่ : ${item.houseNo} ${item.alley} ${item.road} ต. ${item.subDistrict}</div>
+          <div>เจ้าบ้าน : ${item.owner}</div>
+          <div>รอบบิล : ${m}</div>
+          <div class="bill-amount">1,234.00 บาท</div>
+        </div>
+        <div class="bill-footer">
+          <div class="${statusClass}">${status}</div>
+          <div>01/02/2565</div>
+        </div>
+      </div>`;
+    });
+  });
+  container.innerHTML = html;
+}
+
+// โหลดข้อมูล
+async function loadData(userId){
+  const res = await fetch('https://script.google.com/macros/s/AKfycbzMs9qhNmCjAlIfQbEZgXe889U82MoJ-9kQtwe-7VMB6NMNSZ1q22P_4ius3DNelTLOfA/exec');
+  const data = await res.json();
+  rawData = data.content;
+  const grouped = groupByAddressWithAllMonths(rawData);
+  const mine = grouped.filter(item => item.userId === userId);
+  renderBills(mine);
+}
+
+// ====== LIFF ======
+async function main() {
+  await liff.init({ liffId: "2007981677-lnEkgEJj" }); // <<<< ใส่ LIFF ID จริง
+  if (!liff.isLoggedIn()) {
+    liff.login();
+  } else {
+    const profile = await liff.getProfile();
+    document.getElementById("welcomeText").innerText = `สวัสดีคุณ ${profile.displayName}`;
+    // โหลดเฉพาะข้อมูลของตัวเอง
+    loadData(profile.userId);
+  }
+}
+main();
+</script>
+</body>
+</html>
